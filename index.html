@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>All In One Reborn - HLS Player</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Hls.js -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1a1a1a, #050608);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #e6fff9;
+    }
+
+    #video-container {
+      width: 100%;
+      max-width: 880px;
+      aspect-ratio: 16 / 9;
+      position: relative;
+      background: #000;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 0 25px rgba(0, 255, 170, 0.5);
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #000;
+    }
+
+    /* Spinner */
+    #spinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 5px solid rgba(255, 255, 255, 0.25);
+      border-top-color: #00ff99;
+      transform: translate(-50%, -50%);
+      animation: spin 0.75s linear infinite;
+      display: none;
+      z-index: 5;
+    }
+    @keyframes spin {
+      to {
+        transform: translate(-50%, -50%) rotate(360deg);
+      }
+    }
+
+    /* Premium Controls */
+    .premium-controls {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 10px 12px 12px;
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 0.25s ease-out;
+    }
+    .premium-controls.hidden {
+      opacity: 0;
+    }
+
+    .pc-gradient {
+      position: absolute;
+      inset: auto 0 0 0;
+      height: 80px;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .pc-inner {
+      position: relative;
+      z-index: 1;
+      pointer-events: auto;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      overflow: hidden;
+      cursor: pointer;
+      margin-bottom: 6px;
+    }
+    .progress-bar .progress {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #00ffa0, #00e0ff);
+      box-shadow: 0 0 10px rgba(0, 255, 170, 0.7);
+      transition: width 0.08s linear;
+    }
+
+    .pc-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .pc-left,
+    .pc-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pc-btn {
+      border: none;
+      outline: none;
+      background: rgba(0, 0, 0, 0.6);
+      color: #e6fff9;
+      font-size: 14px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 32px;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+    }
+    .pc-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 8px rgba(0, 255, 170, 0.6);
+      background: rgba(0, 0, 0, 0.85);
+    }
+
+    .pc-icon {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .pc-time {
+      font-size: 12px;
+      opacity: 0.85;
+      min-width: 80px;
+    }
+
+    .pc-live {
+      font-size: 11px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: rgba(255, 0, 76, 0.1);
+      border: 1px solid rgba(255, 37, 104, 0.8);
+      color: #ff4e8f;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .pc-range {
+      width: 80px;
+    }
+
+    .pc-range input[type="range"] {
+      width: 100%;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 999px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #00ff99;
+      box-shadow: 0 0 8px rgba(0, 255, 170, 0.9);
+      cursor: pointer;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #00ff99;
+      box-shadow: 0 0 8px rgba(0, 255, 170, 0.9);
+      cursor: pointer;
+    }
+
+    /* Quality menu */
+    #qualityMenu {
+      position: absolute;
+      right: 12px;
+      bottom: 56px;
+      background: rgba(5, 13, 18, 0.98);
+      border-radius: 10px;
+      border: 1px solid rgba(0, 255, 170, 0.6);
+      min-width: 140px;
+      overflow: hidden;
+      display: none;
+      z-index: 10;
+    }
+    .quality-item {
+      padding: 7px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .quality-item:hover {
+      background: rgba(0, 255, 170, 0.15);
+    }
+    .quality-item.active {
+      background: rgba(0, 255, 170, 0.25);
+      font-weight: 600;
+    }
+
+    /* Double-tap hints */
+    .dtap-hint {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%) scale(0.9);
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.75);
+      color: #e6fff9;
+      font-size: 14px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .dtap-hint.left {
+      left: 18%;
+    }
+    .dtap-hint.right {
+      right: 18%;
+    }
+    .dtap-hint.show {
+      opacity: 1;
+      transform: translateY(-50%) scale(1.08);
+    }
+
+    @media (max-width: 600px) {
+      .pc-range {
+        width: 60px;
+      }
+      .pc-time {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="video-container">
+    <div id="spinner"></div>
+    <video
+      id="video"
+      playsinline
+      poster="https://iceporn.tv/api/photos/cover/contents/804214/lilian-stone-performs-a-lap-dance-and-a-fuck-to-a-fan-funporn-41.jpg"
+    ></video>
+
+    <!-- Double tap hints -->
+    <div class="dtap-hint left" id="hintLeft">⏪ 10s</div>
+    <div class="dtap-hint right" id="hintRight">10s ⏩</div>
+
+    <!-- Premium Controls -->
+    <div class="premium-controls" id="pc">
+      <div class="pc-gradient"></div>
+      <div class="pc-inner">
+        <div class="progress-bar" id="progressBar">
+          <div class="progress" id="progressFill"></div>
+        </div>
+
+        <div class="pc-row">
+          <div class="pc-left">
+            <button class="pc-btn" id="btnPlay">
+              <span class="pc-icon" id="playIcon">▶</span>
+            </button>
+
+            <button class="pc-btn" id="btnMute">
+              <span class="pc-icon" id="muteIcon">🔊</span>
+            </button>
+
+            <div class="pc-range">
+              <input id="volumeSlider" type="range" min="0" max="1" step="0.05" value="1" />
+            </div>
+
+            <span class="pc-time" id="timeText">0:00 / 0:00</span>
+          </div>
+
+          <div class="pc-right">
+            <span class="pc-live">LIVE</span>
+
+            <button class="pc-btn" id="btnSpeed">
+              <span class="pc-icon" id="speedLabel">1x</span>
+            </button>
+
+            <button class="pc-btn" id="btnQuality">
+              <span class="pc-icon">HD</span>
+            </button>
+
+            <button class="pc-btn" id="btnPip">
+              <span class="pc-icon">📺</span>
+            </button>
+
+            <button class="pc-btn" id="btnFs">
+              <span class="pc-icon">⛶</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quality menu -->
+    <div id="qualityMenu"></div>
+  </div>
+
+  <script>
+    const STREAM_URL =
+      "https://s3.prns3video.xyz/hls/0039000/39997/master.m3u8";
+
+    const video = document.getElementById("video");
+    const container = document.getElementById("video-container");
+    const spinner = document.getElementById("spinner");
+    const pc = document.getElementById("pc");
+
+    const btnPlay = document.getElementById("btnPlay");
+    const playIcon = document.getElementById("playIcon");
+    const btnMute = document.getElementById("btnMute");
+    const muteIcon = document.getElementById("muteIcon");
+    const volumeSlider = document.getElementById("volumeSlider");
+    const timeText = document.getElementById("timeText");
+
+    const progressBar = document.getElementById("progressBar");
+    const progressFill = document.getElementById("progressFill");
+
+    const btnFs = document.getElementById("btnFs");
+    const btnPip = document.getElementById("btnPip");
+    const btnQuality = document.getElementById("btnQuality");
+    const qualityMenu = document.getElementById("qualityMenu");
+    const btnSpeed = document.getElementById("btnSpeed");
+    const speedLabel = document.getElementById("speedLabel");
+
+    const hintLeft = document.getElementById("hintLeft");
+    const hintRight = document.getElementById("hintRight");
+
+    let hls = null;
+    let hideTimer = null;
+
+    /* ============ HLS INIT ============ */
+    function initHls() {
+      if (window.Hls && Hls.isSupported()) {
+        hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          maxBufferLength: 12,
+        });
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+          hls.loadSource(STREAM_URL);
+        });
+
+        // Spinner + autoplay once manifest ready
+        hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
+          spinner.style.display = "none";
+          buildQualityMenu(data.levels || hls.levels || []);
+          video.play().catch(() => {});
+        });
+
+        hls.on(Hls.Events.ERROR, (evt, data) => {
+          if (data && data.fatal) {
+            console.warn("HLS fatal error", data);
+          }
+        });
+
+        spinner.style.display = "block";
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // Safari / iOS
+        video.src = STREAM_URL;
+        spinner.style.display = "block";
+        video.addEventListener("canplay", () => {
+          spinner.style.display = "none";
+        });
+        video.play().catch(() => {});
+      } else {
+        alert("HLS not supported in this browser.");
+      }
+    }
+
+    /* ============ QUALITY MENU ============ */
+    function buildQualityMenu(levels) {
+      if (!levels || !levels.length) {
+        btnQuality.style.display = "none";
+        return;
+      }
+
+      let html = '<div class="quality-item active" data-id="-1">Auto</div>';
+      levels.forEach((lvl, i) => {
+        const height = lvl.height ? `${lvl.height}p` : "";
+        const fps =
+          lvl.frameRate || (lvl.attrs && lvl.attrs["FRAME-RATE"])
+            ? `${Math.round(lvl.frameRate || lvl.attrs["FRAME-RATE"])}fps`
+            : "";
+        const kbps = lvl.bitrate ? `${Math.round(lvl.bitrate / 1000)}kbps` : "";
+        const label = [height, fps, kbps].filter(Boolean).join(" • ");
+        html += `<div class="quality-item" data-id="${i}">${label}</div>`;
+      });
+
+      qualityMenu.innerHTML = html;
+
+      qualityMenu.querySelectorAll(".quality-item").forEach((item) => {
+        item.addEventListener("click", () => {
+          const id = parseInt(item.dataset.id, 10);
+          qualityMenu
+            .querySelectorAll(".quality-item")
+            .forEach((x) => x.classList.remove("active"));
+          item.classList.add("active");
+
+          if (id < 0) {
+            if (hls) hls.currentLevel = -1;
+            btnQuality.textContent = "Auto";
+          } else {
+            if (hls) hls.currentLevel = id;
+            btnQuality.textContent = item.textContent.split("•")[0].trim();
+          }
+          qualityMenu.style.display = "none";
+        });
+      });
+    }
+
+    btnQuality.addEventListener("click", (e) => {
+      e.stopPropagation();
+      qualityMenu.style.display =
+        qualityMenu.style.display === "block" ? "none" : "block";
+    });
+    document.addEventListener("click", (e) => {
+      if (!qualityMenu.contains(e.target) && e.target !== btnQuality) {
+        qualityMenu.style.display = "none";
+      }
+    });
+
+    /* ============ PLAY / PAUSE ============ */
+    btnPlay.addEventListener("click", () => {
+      if (video.paused) {
+        video.play();
+      } else {
+        video.pause();
+      }
+    });
+
+    video.addEventListener("play", () => {
+      playIcon.textContent = "⏸";
+    });
+
+    video.addEventListener("pause", () => {
+      playIcon.textContent = "▶";
+    });
+
+    /* ============ MUTE / VOLUME ============ */
+    btnMute.addEventListener("click", () => {
+      video.muted = !video.muted;
+      muteIcon.textContent = video.muted ? "🔇" : "🔊";
+    });
+
+    volumeSlider.addEventListener("input", (e) => {
+      video.volume = parseFloat(e.target.value);
+      if (video.volume === 0) {
+        video.muted = true;
+        muteIcon.textContent = "🔇";
+      } else {
+        video.muted = false;
+        muteIcon.textContent = "🔊";
+      }
+    });
+
+    /* ============ TIME / PROGRESS ============ */
+    function formatTime(sec) {
+      if (isNaN(sec)) return "0:00";
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60)
+        .toString()
+        .padStart(2, "0");
+      return `${m}:${s}`;
+    }
+
+    video.addEventListener("timeupdate", () => {
+      const cur = video.currentTime || 0;
+      const dur = video.duration || 0;
+      timeText.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+
+      if (dur > 0) {
+        const pct = (cur / dur) * 100;
+        progressFill.style.width = `${pct}%`;
+      } else {
+        progressFill.style.width = "0%";
+      }
+    });
+
+    progressBar.addEventListener("click", (e) => {
+      const rect = progressBar.getBoundingClientRect();
+      const ratio = (e.clientX - rect.left) / rect.width;
+      if (video.duration) video.currentTime = ratio * video.duration;
+    });
+
+    /* ============ FULLSCREEN ============ */
+    btnFs.addEventListener("click", () => {
+      if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    });
+
+    /* ============ PICTURE-IN-PICTURE ============ */
+    btnPip.addEventListener("click", async () => {
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+        } else if (document.pictureInPictureEnabled) {
+          await video.requestPictureInPicture();
+        }
+      } catch (e) {
+        console.warn("PiP error", e);
+      }
+    });
+
+    /* ============ SPEED CONTROL ============ */
+    const speeds = [0.5, 1, 1.5, 2];
+    let speedIndex = 1;
+    speedLabel.textContent = `${speeds[speedIndex]}x`;
+
+    btnSpeed.addEventListener("click", () => {
+      speedIndex = (speedIndex + 1) % speeds.length;
+      const rate = speeds[speedIndex];
+      video.playbackRate = rate;
+      speedLabel.textContent = `${rate}x`;
+    });
+
+    /* ============ AUTO HIDE CONTROLS ============ */
+    function showControls() {
+      pc.classList.remove("hidden");
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        pc.classList.add("hidden");
+      }, 3000);
+    }
+
+    container.addEventListener("mousemove", showControls);
+    container.addEventListener("touchstart", showControls);
+    showControls();
+
+    /* ============ DOUBLE TAP SEEK (YT STYLE) ============ */
+    let lastTapLeft = 0;
+    let lastTapRight = 0;
+
+    function flashHint(el) {
+      el.classList.add("show");
+      setTimeout(() => el.classList.remove("show"), 260);
+    }
+
+    container.addEventListener("click", (e) => {
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const mid = rect.width / 2;
+      const now = Date.now();
+
+      if (x < mid) {
+        if (now - lastTapLeft < 350) {
+          video.currentTime = Math.max(0, video.currentTime - 10);
+          flashHint(hintLeft);
+        }
+        lastTapLeft = now;
+      } else {
+        if (now - lastTapRight < 350) {
+          const end = video.duration || 0;
+          video.currentTime = Math.min(end, video.currentTime + 10);
+          flashHint(hintRight);
+        }
+        lastTapRight = now;
+      }
+    });
+
+    /* ============ INIT ============ */
+    initHls();
+  </script>
+</body>
+</html>
